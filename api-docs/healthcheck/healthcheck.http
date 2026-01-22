@@ -1,0 +1,2 @@
+### Photos API Health Check
+GET {{host}}/photos/health
