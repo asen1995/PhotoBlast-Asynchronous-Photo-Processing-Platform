@@ -1,3 +1,6 @@
+# Claude
+.claude/
+
 # Environment files
 .env
 .env.local
@@ -9,14 +12,22 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
-### STS ###
+### Eclipse / STS ###
 .apt_generated
 .classpath
 .factorypath
 .project
-.settings
+.settings/
 .springBeans
 .sts4-cache
+*.launch
+.metadata/
+bin/
+tmp/
+*.tmp
+*.bak
+*.swp
+local.properties
 
 ### IntelliJ IDEA ###
 .idea
