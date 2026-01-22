@@ -7,6 +7,13 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+/**
+ * Producer service responsible for publishing photo processing jobs to RabbitMQ.
+ * <p>
+ * Sends {@link PhotoProcessingJob} messages to the configured exchange
+ * for asynchronous processing by consumer workers.
+ * </p>
+ */
 @Service
 public class PhotoJobProducer {
 
@@ -20,10 +27,20 @@ public class PhotoJobProducer {
     @Value("${photoblast.rabbitmq.routing-key.photo-process}")
     private String photoProcessRoutingKey;
 
+    /**
+     * Constructs a new PhotoJobProducer with the given RabbitTemplate.
+     *
+     * @param rabbitTemplate the RabbitTemplate for sending messages
+     */
     public PhotoJobProducer(RabbitTemplate rabbitTemplate) {
         this.rabbitTemplate = rabbitTemplate;
     }
 
+    /**
+     * Sends a photo processing job to the RabbitMQ exchange for async processing.
+     *
+     * @param job the photo processing job to send
+     */
     public void sendPhotoProcessingJob(PhotoProcessingJob job) {
         log.info("Sending photo processing job: jobId={}, photoId={}", job.jobId(), job.photoId());
         rabbitTemplate.convertAndSend(photoExchange, photoProcessRoutingKey, job);
