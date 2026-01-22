@@ -10,13 +10,24 @@ import org.springframework.stereotype.Service;
  * Consumer service that listens for and processes photo processing jobs from RabbitMQ.
  * <p>
  * Consumes {@link PhotoProcessingJob} messages from the photo processing queue
- * and executes the requested tasks such as resizing, watermarking, and thumbnail generation.
+ * and delegates to {@link ImageService} for actual image processing operations.
  * </p>
  */
 @Service
 public class PhotoJobConsumer {
 
     private static final Logger log = LoggerFactory.getLogger(PhotoJobConsumer.class);
+
+    private final ImageService imageService;
+
+    /**
+     * Constructs a new PhotoJobConsumer with the given ImageService.
+     *
+     * @param imageService the image service for processing operations
+     */
+    public PhotoJobConsumer(ImageService imageService) {
+        this.imageService = imageService;
+    }
 
     /**
      * Listens for and processes photo processing jobs from the queue.
@@ -45,41 +56,11 @@ public class PhotoJobConsumer {
         log.info("Processing task {} for photo: photoId={}", task, job.photoId());
 
         switch (task) {
-            case RESIZE -> handleResize(job);
-            case WATERMARK -> handleWatermark(job);
-            case THUMBNAIL -> handleThumbnail(job);
+            case RESIZE -> imageService.resize(job.originalPath(), job.photoId());
+            case WATERMARK -> imageService.watermark(job.originalPath(), job.photoId());
+            case THUMBNAIL -> imageService.thumbnail(job.originalPath(), job.photoId());
         }
 
         log.info("Completed task {} for photo: photoId={}", task, job.photoId());
-    }
-
-    /**
-     * Handles the resize task for a photo.
-     *
-     * @param job the photo processing job containing the photo to resize
-     */
-    private void handleResize(PhotoProcessingJob job) {
-        // TODO: Implement actual resize logic
-        log.info("Resizing photo: {}", job.originalPath());
-    }
-
-    /**
-     * Handles the watermark task for a photo.
-     *
-     * @param job the photo processing job containing the photo to watermark
-     */
-    private void handleWatermark(PhotoProcessingJob job) {
-        // TODO: Implement actual watermark logic
-        log.info("Adding watermark to photo: {}", job.originalPath());
-    }
-
-    /**
-     * Handles the thumbnail generation task for a photo.
-     *
-     * @param job the photo processing job containing the photo to generate thumbnail for
-     */
-    private void handleThumbnail(PhotoProcessingJob job) {
-        // TODO: Implement actual thumbnail generation logic
-        log.info("Generating thumbnail for photo: {}", job.originalPath());
     }
 }

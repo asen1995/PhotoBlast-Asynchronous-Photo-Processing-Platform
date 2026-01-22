@@ -1,8 +1,10 @@
 # Claude
 .claude/
 
-# Uploads
+# Uploads & Processed
 uploads/
+processed/
+thumbnails/
 
 # Environment files
 .env
