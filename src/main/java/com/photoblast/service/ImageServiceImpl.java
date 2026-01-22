@@ -1,11 +1,11 @@
 package com.photoblast.service;
 
+import com.photoblast.config.ImageProperties;
 import com.photoblast.exception.ImageProcessingException;
 import net.coobird.thumbnailator.Thumbnails;
 import net.coobird.thumbnailator.geometry.Positions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.imageio.ImageIO;
@@ -28,29 +28,16 @@ public class ImageServiceImpl implements ImageService {
 
     private static final Logger log = LoggerFactory.getLogger(ImageServiceImpl.class);
 
-    @Value("${photoblast.storage.processed-dir}")
-    private String processedDir;
+    private final ImageProperties imageProperties;
 
-    @Value("${photoblast.storage.thumbnail-dir}")
-    private String thumbnailDir;
-
-    @Value("${photoblast.image.resize.width}")
-    private int resizeWidth;
-
-    @Value("${photoblast.image.resize.height}")
-    private int resizeHeight;
-
-    @Value("${photoblast.image.thumbnail.width}")
-    private int thumbnailWidth;
-
-    @Value("${photoblast.image.thumbnail.height}")
-    private int thumbnailHeight;
-
-    @Value("${photoblast.image.watermark.path}")
-    private String watermarkPath;
-
-    @Value("${photoblast.image.watermark.opacity}")
-    private float watermarkOpacity;
+    /**
+     * Constructs a new ImageServiceImpl with the given configuration properties.
+     *
+     * @param imageProperties the image processing configuration properties
+     */
+    public ImageServiceImpl(ImageProperties imageProperties) {
+        this.imageProperties = imageProperties;
+    }
 
     /**
      * {@inheritDoc}
@@ -60,14 +47,14 @@ public class ImageServiceImpl implements ImageService {
         log.info("Resizing image: photoId={}, path={}", photoId, imagePath);
 
         try {
-            Path outputDir = Paths.get(processedDir);
+            Path outputDir = Paths.get(imageProperties.getProcessedDir());
             Files.createDirectories(outputDir);
 
             String outputFilename = photoId + "_resized" + getExtension(imagePath);
             Path outputPath = outputDir.resolve(outputFilename);
 
             Thumbnails.of(new File(imagePath))
-                    .size(resizeWidth, resizeHeight)
+                    .size(imageProperties.getResizeWidth(), imageProperties.getResizeHeight())
                     .keepAspectRatio(true)
                     .toFile(outputPath.toFile());
 
@@ -87,15 +74,15 @@ public class ImageServiceImpl implements ImageService {
         log.info("Applying watermark: photoId={}, path={}", photoId, imagePath);
 
         try {
-            Path outputDir = Paths.get(processedDir);
+            Path outputDir = Paths.get(imageProperties.getProcessedDir());
             Files.createDirectories(outputDir);
 
             String outputFilename = photoId + "_watermarked" + getExtension(imagePath);
             Path outputPath = outputDir.resolve(outputFilename);
 
-            File watermarkFile = new File(watermarkPath);
+            File watermarkFile = new File(imageProperties.getWatermarkPath());
             if (!watermarkFile.exists()) {
-                log.warn("Watermark file not found: {}. Skipping watermark.", watermarkPath);
+                log.warn("Watermark file not found: {}. Skipping watermark.", imageProperties.getWatermarkPath());
                 return;
             }
 
@@ -103,7 +90,7 @@ public class ImageServiceImpl implements ImageService {
 
             Thumbnails.of(new File(imagePath))
                     .scale(1.0)
-                    .watermark(Positions.BOTTOM_RIGHT, watermarkImage, watermarkOpacity)
+                    .watermark(Positions.BOTTOM_RIGHT, watermarkImage, imageProperties.getWatermarkOpacity())
                     .toFile(outputPath.toFile());
 
             log.info("Watermark applied: photoId={}, output={}", photoId, outputPath);
@@ -122,14 +109,14 @@ public class ImageServiceImpl implements ImageService {
         log.info("Generating thumbnail: photoId={}, path={}", photoId, imagePath);
 
         try {
-            Path outputDir = Paths.get(thumbnailDir);
+            Path outputDir = Paths.get(imageProperties.getThumbnailDir());
             Files.createDirectories(outputDir);
 
             String outputFilename = photoId + "_thumb" + getExtension(imagePath);
             Path outputPath = outputDir.resolve(outputFilename);
 
             Thumbnails.of(new File(imagePath))
-                    .size(thumbnailWidth, thumbnailHeight)
+                    .size(imageProperties.getThumbnailWidth(), imageProperties.getThumbnailHeight())
                     .keepAspectRatio(true)
                     .toFile(outputPath.toFile());
 
