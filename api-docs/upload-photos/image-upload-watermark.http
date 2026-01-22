@@ -1,0 +1,14 @@
+### Upload Photo with WATERMARK
+POST {{host}}/photos/upload
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="file"; filename="bear.jpg"
+Content-Type: image/jpeg
+
+< ../images/bear.jpg
+--boundary
+Content-Disposition: form-data; name="tasks"
+
+WATERMARK
+--boundary--
