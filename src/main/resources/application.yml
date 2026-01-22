@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: PhotoBlast
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: photoblast
+    password: photoblast123
+    virtual-host: photoblast
+
+photoblast:
+  rabbitmq:
+    queue:
+      photo-process: job.photo.process
+      dead-letter: job.photo.process.dlq
+    exchange:
+      photo: photo.exchange
+    routing-key:
+      photo-process: photo.process
