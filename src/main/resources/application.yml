@@ -15,6 +15,18 @@ spring:
 photoblast:
   storage:
     upload-dir: uploads
+    processed-dir: processed
+    thumbnail-dir: thumbnails
+  image:
+    resize:
+      width: 1920
+      height: 1080
+    thumbnail:
+      width: 200
+      height: 200
+    watermark:
+      path: watermark.png
+      opacity: 0.3
   rabbitmq:
     queue:
       photo-process: job.photo.process
