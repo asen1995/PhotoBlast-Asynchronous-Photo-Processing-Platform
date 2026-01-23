@@ -3,6 +3,7 @@ package com.photoblast.service;
 import com.photoblast.dto.PhotoUploadResponse;
 import com.photoblast.model.PhotoProcessingJob;
 import com.photoblast.model.PhotoProcessingJob.ProcessingTask;
+import com.photoblast.util.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -10,12 +11,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Implementation of {@link PhotoUploadService} for handling photo uploads.
+ * <p>
+ * Validates, stores uploaded photos, and publishes processing jobs to RabbitMQ.
+ * </p>
+ */
 @Service
 public class PhotoUploadServiceImpl implements PhotoUploadService {
 
@@ -26,10 +31,18 @@ public class PhotoUploadServiceImpl implements PhotoUploadService {
     @Value("${photoblast.storage.upload-dir:uploads}")
     private String uploadDir;
 
+    /**
+     * Constructs a new PhotoUploadServiceImpl with the given producer.
+     *
+     * @param photoJobProducer the producer for sending processing jobs
+     */
     public PhotoUploadServiceImpl(PhotoJobProducer photoJobProducer) {
         this.photoJobProducer = photoJobProducer;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public PhotoUploadResponse uploadPhoto(MultipartFile file, List<ProcessingTask> tasks) {
         if (file.isEmpty()) {
@@ -44,12 +57,10 @@ public class PhotoUploadServiceImpl implements PhotoUploadService {
         try {
             String photoId = UUID.randomUUID().toString();
             String originalFilename = file.getOriginalFilename();
-            String extension = getFileExtension(originalFilename);
+            String extension = FileUtils.getExtension(originalFilename);
             String storedFilename = photoId + extension;
 
-            Path uploadPath = Paths.get(uploadDir);
-            Files.createDirectories(uploadPath);
-
+            Path uploadPath = FileUtils.ensureDirectoryExists(uploadDir);
             Path filePath = uploadPath.resolve(storedFilename);
             file.transferTo(filePath);
 
@@ -64,12 +75,5 @@ public class PhotoUploadServiceImpl implements PhotoUploadService {
             log.error("Failed to upload photo", e);
             return PhotoUploadResponse.error("Failed to store photo: " + e.getMessage());
         }
-    }
-
-    private String getFileExtension(String filename) {
-        if (filename == null || !filename.contains(".")) {
-            return "";
-        }
-        return filename.substring(filename.lastIndexOf("."));
     }
 }
