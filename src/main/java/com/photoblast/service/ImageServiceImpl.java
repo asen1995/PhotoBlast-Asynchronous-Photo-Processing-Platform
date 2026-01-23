@@ -2,6 +2,7 @@ package com.photoblast.service;
 
 import com.photoblast.config.ImageProperties;
 import com.photoblast.exception.ImageProcessingException;
+import com.photoblast.util.FileUtils;
 import net.coobird.thumbnailator.Thumbnails;
 import net.coobird.thumbnailator.geometry.Positions;
 import org.slf4j.Logger;
@@ -12,9 +13,7 @@ import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 
 /**
  * Implementation of {@link ImageService} using Thumbnailator library.
@@ -47,10 +46,8 @@ public class ImageServiceImpl implements ImageService {
         log.info("Resizing image: photoId={}, path={}", photoId, imagePath);
 
         try {
-            Path outputDir = Paths.get(imageProperties.getProcessedDir());
-            Files.createDirectories(outputDir);
-
-            String outputFilename = photoId + "_resized" + getExtension(imagePath);
+            Path outputDir = FileUtils.ensureDirectoryExists(imageProperties.getProcessedDir());
+            String outputFilename = photoId + "_resized" + FileUtils.getExtension(imagePath);
             Path outputPath = outputDir.resolve(outputFilename);
 
             Thumbnails.of(new File(imagePath))
@@ -74,10 +71,8 @@ public class ImageServiceImpl implements ImageService {
         log.info("Applying watermark: photoId={}, path={}", photoId, imagePath);
 
         try {
-            Path outputDir = Paths.get(imageProperties.getProcessedDir());
-            Files.createDirectories(outputDir);
-
-            String outputFilename = photoId + "_watermarked" + getExtension(imagePath);
+            Path outputDir = FileUtils.ensureDirectoryExists(imageProperties.getProcessedDir());
+            String outputFilename = photoId + "_watermarked" + FileUtils.getExtension(imagePath);
             Path outputPath = outputDir.resolve(outputFilename);
 
             File watermarkFile = new File(imageProperties.getWatermarkPath());
@@ -109,10 +104,8 @@ public class ImageServiceImpl implements ImageService {
         log.info("Generating thumbnail: photoId={}, path={}", photoId, imagePath);
 
         try {
-            Path outputDir = Paths.get(imageProperties.getThumbnailDir());
-            Files.createDirectories(outputDir);
-
-            String outputFilename = photoId + "_thumb" + getExtension(imagePath);
+            Path outputDir = FileUtils.ensureDirectoryExists(imageProperties.getThumbnailDir());
+            String outputFilename = photoId + "_thumb" + FileUtils.getExtension(imagePath);
             Path outputPath = outputDir.resolve(outputFilename);
 
             Thumbnails.of(new File(imagePath))
@@ -126,19 +119,5 @@ public class ImageServiceImpl implements ImageService {
             log.error("Failed to generate thumbnail: photoId={}", photoId, e);
             throw new ImageProcessingException("Failed to generate thumbnail", e);
         }
-    }
-
-    /**
-     * Extracts the file extension from the given path.
-     *
-     * @param path the file path
-     * @return the file extension including the dot, or ".jpg" as default
-     */
-    private String getExtension(String path) {
-        int lastDot = path.lastIndexOf('.');
-        if (lastDot > 0) {
-            return path.substring(lastDot);
-        }
-        return ".jpg";
     }
 }
