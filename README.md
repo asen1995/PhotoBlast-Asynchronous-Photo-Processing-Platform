@@ -11,6 +11,7 @@ PhotoBlast is a scalable photo processing platform with a React frontend and Spr
 | Frontend | React + Vite | Web interface for photo uploads |
 | Backend | Java 21 + Spring Boot | REST API and job processing |
 | Messaging | RabbitMQ | Async task queue |
+| Cache | Redis | Idempotency key storage |
 | Containerization | Docker Compose | Local orchestration |
 
 ## Getting Started
@@ -32,11 +33,12 @@ Start all services with a single command:
 docker-compose up -d
 ```
 
-This starts three services in order:
+This starts four services in order:
 
 1. **RabbitMQ** - Message broker (waits for health check)
-2. **Backend** - Spring Boot API (waits for RabbitMQ)
-3. **Frontend** - React app via Nginx (waits for Backend)
+2. **Redis** - Cache for idempotency keys (waits for health check)
+3. **Backend** - Spring Boot API (waits for RabbitMQ and Redis)
+4. **Frontend** - React app via Nginx (waits for Backend)
 
 ### Accessing the Application
 
@@ -45,6 +47,7 @@ This starts three services in order:
 | Frontend | http://localhost:3000 | Photo upload interface |
 | Backend API | http://localhost:8080/api | REST API |
 | RabbitMQ UI | http://localhost:15672 | Message queue management |
+| Redis | localhost:6379 | Idempotency cache |
 
 RabbitMQ credentials:
 - Username: `photoblast`
@@ -64,9 +67,9 @@ docker-compose down -v
 
 ### Running Locally (Development)
 
-1. **Start RabbitMQ**
+1. **Start RabbitMQ and Redis**
    ```bash
-   docker-compose up -d rabbitmq
+   docker-compose up -d rabbitmq redis
    ```
 
 2. **Start the Backend**
@@ -154,11 +157,14 @@ Response:
 
 The API supports idempotency keys at the HTTP filter level to safely handle retries.
 When a client sends a POST/PUT/PATCH request with an `X-Idempotency-Key` header,
-the server caches the response. If the same key is sent again within the TTL
+the server caches the response in Redis. If the same key is sent again within the TTL
 (default: 60 minutes), the cached response is returned without re-executing the handler.
 
-This prevents duplicate operations when network issues cause clients to retry requests.
-The filter-level implementation keeps controllers clean and applies consistently across all endpoints.
+Benefits:
+- **Distributed** - Works across multiple backend instances via Redis
+- **Persistent** - Survives application restarts
+- **Automatic TTL** - Redis handles expiration automatically
+- **Clean architecture** - Filter-level implementation keeps controllers focused on business logic
 
 ### Health Check
 ```
@@ -204,6 +210,10 @@ spring:
     username: photoblast
     password: photoblast123
     virtual-host: photoblast
+  data:
+    redis:
+      host: localhost
+      port: 6379
 
 photoblast:
   image:
@@ -214,7 +224,7 @@ photoblast:
       width: 200
       height: 200
   idempotency:
-    ttl-minutes: 60  # How long to cache responses
+    ttl-minutes: 60  # How long to cache responses in Redis
 ```
 
 ### Environment Variables
@@ -230,6 +240,7 @@ photoblast:
 | Service | Container Name | Ports | Health Check |
 |---------|----------------|-------|--------------|
 | rabbitmq | photoblast-rabbitmq | 5672, 15672 | Port connectivity |
+| redis | photoblast-redis | 6379 | redis-cli ping |
 | backend | photoblast-backend | 8080 | /api/photos/health |
 | frontend | photoblast-frontend | 3000 | Depends on backend |
 
@@ -238,6 +249,7 @@ photoblast:
 | Volume | Purpose |
 |--------|---------|
 | rabbitmq_data | RabbitMQ persistent data |
+| redis_data | Redis persistent data |
 | uploads_data | Original uploaded photos |
 | processed_data | Processed photos |
 | thumbnails_data | Generated thumbnails |
