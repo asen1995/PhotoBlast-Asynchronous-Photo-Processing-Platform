@@ -2,103 +2,185 @@
 
 **Asynchronous Photo Processing Platform**
 
-PhotoBlast is a scalable backend system designed to handle asynchronous processing of user-uploaded photos. Users upload images via a REST API, which queues processing tasks such as resizing, watermarking, and thumbnail generation. These tasks are distributed reliably across multiple worker services using RabbitMQ, ensuring fault tolerance, scalability, and smooth user experience without blocking requests.
+PhotoBlast is a scalable photo processing platform with a React frontend and Spring Boot backend. Users upload images through a web interface, which queues processing tasks such as resizing, watermarking, and thumbnail generation. Tasks are distributed reliably using RabbitMQ, ensuring fault tolerance and scalability.
 
 ## Technology Stack
 
-| Technology | Purpose |
-|------------|---------|
-| Java 21 | Runtime |
-| Spring Boot 4 | Application framework |
-| Spring AMQP | RabbitMQ integration |
-| RabbitMQ | Message broker |
-| Docker Compose | Local orchestration |
+| Component | Technology | Purpose |
+|-----------|------------|---------|
+| Frontend | React + Vite | Web interface for photo uploads |
+| Backend | Java 21 + Spring Boot | REST API and job processing |
+| Messaging | RabbitMQ | Async task queue |
+| Containerization | Docker Compose | Local orchestration |
 
 ## Getting Started
 
 ### Prerequisites
 
-- Java 21+
 - Docker & Docker Compose
-- Maven 3.9+
 
-### Running Locally
+For local development without Docker:
+- Java 21+
+- Maven 3.9+
+- Node.js 20+
+
+### Running with Docker Compose (Recommended)
+
+Start all services with a single command:
+
+```bash
+docker-compose up -d
+```
+
+This starts three services in order:
+
+1. **RabbitMQ** - Message broker (waits for health check)
+2. **Backend** - Spring Boot API (waits for RabbitMQ)
+3. **Frontend** - React app via Nginx (waits for Backend)
+
+### Accessing the Application
+
+| Service | URL | Description |
+|---------|-----|-------------|
+| Frontend | http://localhost:3000 | Photo upload interface |
+| Backend API | http://localhost:8080/api | REST API |
+| RabbitMQ UI | http://localhost:15672 | Message queue management |
+
+RabbitMQ credentials:
+- Username: `photoblast`
+- Password: `photoblast123`
+
+### Stopping the Application
+
+```bash
+docker-compose down
+```
+
+To also remove volumes (uploaded photos, RabbitMQ data):
+
+```bash
+docker-compose down -v
+```
+
+### Running Locally (Development)
 
 1. **Start RabbitMQ**
    ```bash
-   docker-compose up -d
+   docker-compose up -d rabbitmq
    ```
 
-2. **Access RabbitMQ Management UI**
-   - URL: http://localhost:15672
-   - Username: `photoblast`
-   - Password: `photoblast123`
-
-3. **Run the application**
+2. **Start the Backend**
    ```bash
    ./mvnw spring-boot:run
    ```
+
+3. **Start the Frontend**
+   ```bash
+   cd front-end
+   npm install
+   npm run dev
+   ```
+
+   Frontend dev server runs at http://localhost:5173 with hot reload.
 
 ## Architecture
 
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   REST API      │     │    RabbitMQ     │     │     Worker      │
-│   (Producer)    │────>│   Message Queue │────>│   (Consumer)    │
+│    Frontend     │     │     Backend     │     │    RabbitMQ     │
+│   (React/Vite)  │────>│  (Spring Boot)  │────>│  Message Queue  │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
         │                       │                       │
         v                       v                       v
-   Upload Photo          job.photo.process        Process Tasks
-   Validate & Store      Dead Letter Queue        Store Results
-   Publish Job           Retry Mechanism          Notify User
+   Upload UI              REST API               job.photo.process
+   Task Selection         Validate & Store       Dead Letter Queue
+   Progress Display       Publish Job            Retry Mechanism
+                                │
+                                v
+                        ┌─────────────────┐
+                        │     Worker      │
+                        │   (Consumer)    │
+                        └─────────────────┘
+                                │
+                                v
+                          Process Tasks
+                          Store Results
 ```
 
-## Core Components
+## Features
 
-### Photo Upload API (Producer Service)
+### Frontend
+- Drag & drop image upload
+- Click to browse files
+- Image preview before upload
+- Selectable processing tasks:
+  - **Resize** - Scale to 1920x1080
+  - **Thumbnail** - Generate 200x200 thumbnail
+  - **Watermark** - Apply watermark overlay
+- Upload progress and status feedback
 
-- REST endpoint to accept photo uploads
-- Validates and stores original photos (local disk or cloud storage)
-- Publishes a job message to RabbitMQ to process the photo asynchronously
+### Backend
+- REST API for photo uploads
+- Image validation (type checking)
+- Async job processing via RabbitMQ
+- Multiple processing tasks per upload
 
-### RabbitMQ Messaging Layer
+## API Endpoints
 
-| Queue | Purpose |
-|-------|---------|
-| `job.photo.process` | Main queue for photo processing tasks |
-| `job.photo.process.dlq` | Dead-letter queue for failed jobs |
+### Upload Photo
+```
+POST /api/photos/upload
+Content-Type: multipart/form-data
 
-Features:
-- Retry mechanism using delayed messages and TTL
-- Message acknowledgment on successful processing
+Parameters:
+- file: Image file (required)
+- tasks: Processing tasks (optional, default: RESIZE,THUMBNAIL)
+         Values: RESIZE, THUMBNAIL, WATERMARK
 
-### Photo Processing Worker (Consumer Service)
+Response:
+{
+  "success": true,
+  "message": "Photo uploaded successfully",
+  "jobId": "uuid",
+  "photoId": "uuid",
+  "tasks": ["RESIZE", "THUMBNAIL"]
+}
+```
 
-- Multiple instances can consume from the photo processing queue
-- Performs tasks: **resizing**, **watermarking**, **thumbnail creation**
-- Acknowledges messages upon success; failed jobs are retried or dead-lettered
+### Health Check
+```
+GET /api/photos/health
 
-### Storage & Result Delivery
-
-- Stores processed photos in a separate location
-- Optional: Notifies users when processing completes (email/push notifications)
+Response: OK
+```
 
 ## Project Structure
 
 ```
-src/main/java/com/photoblast/
-├── config/
-│   └── RabbitMQConfig.java       # Queue, exchange, and binding setup
-├── model/
-│   └── PhotoProcessingJob.java   # Job message model
-└── service/
-    ├── PhotoJobProducer.java     # Publishes jobs to RabbitMQ
-    └── PhotoJobConsumer.java     # Processes jobs from queue
+PhotoBlast/
+├── docker-compose.yml          # Full stack orchestration
+├── Dockerfile                  # Backend container
+├── pom.xml                     # Maven configuration
+├── src/main/java/com/photoblast/
+│   ├── config/                 # RabbitMQ and app configuration
+│   ├── controller/             # REST controllers
+│   ├── dto/                    # Data transfer objects
+│   ├── model/                  # Domain models
+│   ├── service/                # Business logic
+│   └── util/                   # Utility classes
+└── front-end/
+    ├── Dockerfile              # Frontend container
+    ├── nginx.conf              # Production server config
+    ├── src/
+    │   ├── components/         # React components
+    │   ├── App.jsx             # Main app component
+    │   └── main.jsx            # Entry point
+    └── vite.config.js          # Vite configuration
 ```
 
 ## Configuration
 
-Configuration is managed in `src/main/resources/application.yml`:
+### Backend (application.yml)
 
 ```yaml
 spring:
@@ -108,5 +190,38 @@ spring:
     username: photoblast
     password: photoblast123
     virtual-host: photoblast
+
+photoblast:
+  image:
+    resize:
+      width: 1920
+      height: 1080
+    thumbnail:
+      width: 200
+      height: 200
 ```
 
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| RABBITMQ_USER | photoblast | RabbitMQ username |
+| RABBITMQ_PASS | photoblast123 | RabbitMQ password |
+| RABBITMQ_VHOST | photoblast | RabbitMQ virtual host |
+
+## Docker Compose Services
+
+| Service | Container Name | Ports | Health Check |
+|---------|----------------|-------|--------------|
+| rabbitmq | photoblast-rabbitmq | 5672, 15672 | Port connectivity |
+| backend | photoblast-backend | 8080 | /api/photos/health |
+| frontend | photoblast-frontend | 3000 | Depends on backend |
+
+### Volumes
+
+| Volume | Purpose |
+|--------|---------|
+| rabbitmq_data | RabbitMQ persistent data |
+| uploads_data | Original uploaded photos |
+| processed_data | Processed photos |
+| thumbnails_data | Generated thumbnails |
