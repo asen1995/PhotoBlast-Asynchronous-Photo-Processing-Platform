@@ -132,6 +132,9 @@ docker-compose down -v
 POST /api/photos/upload
 Content-Type: multipart/form-data
 
+Headers:
+- X-Idempotency-Key: Unique key to prevent duplicate uploads on retry (optional)
+
 Parameters:
 - file: Image file (required)
 - tasks: Processing tasks (optional, default: RESIZE,THUMBNAIL)
@@ -146,6 +149,16 @@ Response:
   "tasks": ["RESIZE", "THUMBNAIL"]
 }
 ```
+
+#### Idempotency
+
+The API supports idempotency keys at the HTTP filter level to safely handle retries.
+When a client sends a POST/PUT/PATCH request with an `X-Idempotency-Key` header,
+the server caches the response. If the same key is sent again within the TTL
+(default: 60 minutes), the cached response is returned without re-executing the handler.
+
+This prevents duplicate operations when network issues cause clients to retry requests.
+The filter-level implementation keeps controllers clean and applies consistently across all endpoints.
 
 ### Health Check
 ```
@@ -165,6 +178,7 @@ PhotoBlast/
 │   ├── config/                 # RabbitMQ and app configuration
 │   ├── controller/             # REST controllers
 │   ├── dto/                    # Data transfer objects
+│   ├── filter/                 # HTTP filters (idempotency)
 │   ├── model/                  # Domain models
 │   ├── service/                # Business logic
 │   └── util/                   # Utility classes
@@ -199,6 +213,8 @@ photoblast:
     thumbnail:
       width: 200
       height: 200
+  idempotency:
+    ttl-minutes: 60  # How long to cache responses
 ```
 
 ### Environment Variables

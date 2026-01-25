@@ -1,6 +1,10 @@
 import { useState, useRef } from 'react';
 import './ImageUpload.css';
 
+const generateIdempotencyKey = () => {
+  return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+};
+
 const PROCESSING_TASKS = [
   { id: 'RESIZE', label: 'Resize', description: 'Resize to 1920x1080' },
   { id: 'THUMBNAIL', label: 'Thumbnail', description: 'Generate 200x200 thumbnail' },
@@ -14,6 +18,7 @@ function ImageUpload() {
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [result, setResult] = useState(null);
+  const [idempotencyKey, setIdempotencyKey] = useState(null);
   const fileInputRef = useRef(null);
 
   const handleFileSelect = (file) => {
@@ -21,6 +26,7 @@ function ImageUpload() {
       setSelectedFile(file);
       setPreview(URL.createObjectURL(file));
       setResult(null);
+      setIdempotencyKey(generateIdempotencyKey());
     }
   };
 
@@ -70,6 +76,9 @@ function ImageUpload() {
       const response = await fetch(`/api/photos/upload?tasks=${tasksParam}`, {
         method: 'POST',
         body: formData,
+        headers: {
+          'X-Idempotency-Key': idempotencyKey,
+        },
       });
 
       const data = await response.json();
@@ -92,6 +101,7 @@ function ImageUpload() {
     setSelectedFile(null);
     setPreview(null);
     setResult(null);
+    setIdempotencyKey(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }

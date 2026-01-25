@@ -17,6 +17,7 @@ import java.util.List;
  * REST controller for photo upload operations.
  * <p>
  * Provides endpoints for uploading photos and health checks.
+ * Idempotency is handled at the filter level via {@link com.photoblast.filter.IdempotencyFilter}.
  * </p>
  */
 @RestController
