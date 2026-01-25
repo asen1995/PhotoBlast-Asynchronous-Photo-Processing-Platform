@@ -9,22 +9,22 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.util.ContentCachingResponseWrapper;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.time.Duration;
+import java.util.Base64;
 
 /**
- * HTTP filter that implements idempotency key checking for POST requests.
+ * HTTP filter that implements idempotency key checking for POST/PUT/PATCH requests.
  * <p>
- * When a request includes an X-Idempotency-Key header, the filter caches the response.
- * Subsequent requests with the same key return the cached response without
- * re-executing the request handler.
+ * Uses Redis to store cached responses, enabling idempotency across multiple
+ * application instances. When a request includes an X-Idempotency-Key header,
+ * the filter caches the response in Redis with a configurable TTL.
  * </p>
  */
 @Component
@@ -33,11 +33,17 @@ public class IdempotencyFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(IdempotencyFilter.class);
     private static final String IDEMPOTENCY_KEY_HEADER = "X-Idempotency-Key";
+    private static final String REDIS_KEY_PREFIX = "idempotency:";
+    private static final String FIELD_SEPARATOR = "|||";
 
-    private final Map<String, CachedResponse> cache = new ConcurrentHashMap<>();
+    private final StringRedisTemplate redisTemplate;
 
     @Value("${photoblast.idempotency.ttl-minutes:60}")
     private long ttlMinutes;
+
+    public IdempotencyFilter(StringRedisTemplate redisTemplate) {
+        this.redisTemplate = redisTemplate;
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -51,10 +57,10 @@ public class IdempotencyFilter extends OncePerRequestFilter {
             return;
         }
 
-        cleanupExpiredEntries();
+        String redisKey = REDIS_KEY_PREFIX + idempotencyKey;
 
-        CachedResponse cached = cache.get(idempotencyKey);
-        if (cached != null && !cached.isExpired()) {
+        String cached = redisTemplate.opsForValue().get(redisKey);
+        if (cached != null) {
             log.info("Returning cached response for idempotency key: {}", idempotencyKey);
             writeCachedResponse(response, cached);
             return;
@@ -64,44 +70,46 @@ public class IdempotencyFilter extends OncePerRequestFilter {
 
         filterChain.doFilter(request, responseWrapper);
 
-        cacheResponse(idempotencyKey, responseWrapper);
+        cacheResponse(redisKey, responseWrapper);
 
         responseWrapper.copyBodyToResponse();
     }
 
     private boolean isIdempotentMethod(HttpServletRequest request) {
         String method = request.getMethod();
-        return "POST".equalsIgnoreCase(method) || "PUT".equalsIgnoreCase(method) || "PATCH".equalsIgnoreCase(method);
+        return "POST".equalsIgnoreCase(method)
+            || "PUT".equalsIgnoreCase(method)
+            || "PATCH".equalsIgnoreCase(method);
     }
 
-    private void writeCachedResponse(HttpServletResponse response, CachedResponse cached) throws IOException {
-        response.setStatus(cached.status());
-        response.setContentType(cached.contentType());
-        if (cached.body() != null && cached.body().length > 0) {
-            response.getOutputStream().write(cached.body());
+    private void writeCachedResponse(HttpServletResponse response, String cached) throws IOException {
+        String[] parts = cached.split("\\|\\|\\|", 3);
+        if (parts.length < 3) {
+            log.warn("Invalid cached response format");
+            return;
+        }
+
+        int status = Integer.parseInt(parts[0]);
+        String contentType = parts[1];
+        byte[] body = Base64.getDecoder().decode(parts[2]);
+
+        response.setStatus(status);
+        if (!contentType.isEmpty()) {
+            response.setContentType(contentType);
+        }
+        if (body.length > 0) {
+            response.getOutputStream().write(body);
         }
     }
 
-    private void cacheResponse(String key, ContentCachingResponseWrapper responseWrapper) {
-        long expiresAt = Instant.now().plusSeconds(ttlMinutes * 60).toEpochMilli();
-        CachedResponse cached = new CachedResponse(
-                responseWrapper.getStatus(),
-                responseWrapper.getContentType(),
-                responseWrapper.getContentAsByteArray(),
-                expiresAt
-        );
-        cache.put(key, cached);
-        log.info("Cached response for idempotency key: {}, status: {}, expiresIn: {}min",
-                key, cached.status(), ttlMinutes);
-    }
+    private void cacheResponse(String redisKey, ContentCachingResponseWrapper responseWrapper) {
+        int status = responseWrapper.getStatus();
+        String contentType = responseWrapper.getContentType() != null ? responseWrapper.getContentType() : "";
+        String bodyBase64 = Base64.getEncoder().encodeToString(responseWrapper.getContentAsByteArray());
 
-    private void cleanupExpiredEntries() {
-        cache.entrySet().removeIf(entry -> entry.getValue().isExpired());
-    }
+        String value = status + FIELD_SEPARATOR + contentType + FIELD_SEPARATOR + bodyBase64;
 
-    private record CachedResponse(int status, String contentType, byte[] body, long expiresAt) {
-        boolean isExpired() {
-            return System.currentTimeMillis() > expiresAt;
-        }
+        redisTemplate.opsForValue().set(redisKey, value, Duration.ofMinutes(ttlMinutes));
+        log.info("Cached response in Redis: key={}, status={}, ttl={}min", redisKey, status, ttlMinutes);
     }
 }

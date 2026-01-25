@@ -11,6 +11,10 @@ spring:
     username: photoblast
     password: photoblast123
     virtual-host: photoblast
+  data:
+    redis:
+      host: localhost
+      port: 6379
 
 photoblast:
   storage:
@@ -35,3 +39,5 @@ photoblast:
       photo: photo.exchange
     routing-key:
       photo-process: photo.process
+  idempotency:
+    ttl-minutes: 60
