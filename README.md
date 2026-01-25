@@ -136,7 +136,7 @@ POST /api/photos/upload
 Content-Type: multipart/form-data
 
 Headers:
-- X-Idempotency-Key: Unique key to prevent duplicate uploads on retry (optional)
+- X-Idempotency-Key: Unique key to prevent duplicate uploads on retry (required)
 
 Parameters:
 - file: Image file (required)

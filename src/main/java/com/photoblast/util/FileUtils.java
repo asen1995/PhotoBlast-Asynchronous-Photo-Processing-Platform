@@ -7,6 +7,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+import static java.util.Objects.isNull;
+
 /**
  * Utility class for common file operations.
  */
@@ -20,7 +22,7 @@ public class FileUtils {
      * @return the file extension including the dot, or ".jpg" as default
      */
     public String getExtension(String filename) {
-        if (filename == null) {
+        if (isNull(filename)) {
             return ".jpg";
         }
         int lastDot = filename.lastIndexOf('.');

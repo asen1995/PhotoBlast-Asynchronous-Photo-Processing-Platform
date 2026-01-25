@@ -10,14 +10,18 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.util.ContentCachingResponseWrapper;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Base64;
+import java.util.Set;
+
+import static java.util.Objects.isNull;
+import static java.util.Objects.nonNull;
 
 /**
  * HTTP filter that implements idempotency key checking for POST/PUT/PATCH requests.
@@ -35,6 +39,11 @@ public class IdempotencyFilter extends OncePerRequestFilter {
     private static final String IDEMPOTENCY_KEY_HEADER = "X-Idempotency-Key";
     private static final String REDIS_KEY_PREFIX = "idempotency:";
     private static final String FIELD_SEPARATOR = "|||";
+    private static final Set<String> NON_IDEMPOTENT_METHODS = Set.of(
+            HttpMethod.POST.name(),
+            HttpMethod.PUT.name(),
+            HttpMethod.PATCH.name()
+    );
 
     private final StringRedisTemplate redisTemplate;
 
@@ -50,17 +59,26 @@ public class IdempotencyFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
 
+        if (isIdempotent(request)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         String idempotencyKey = request.getHeader(IDEMPOTENCY_KEY_HEADER);
 
-        if (idempotencyKey == null || idempotencyKey.isBlank() || !isIdempotentMethod(request)) {
-            filterChain.doFilter(request, response);
+        if (isNull(idempotencyKey) || idempotencyKey.isBlank()) {
+            log.warn("Missing required {} header for {} {}",
+                    IDEMPOTENCY_KEY_HEADER, request.getMethod(), request.getRequestURI());
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            response.setContentType("application/json");
+            response.getWriter().write("{\"error\":\"Missing required header: " + IDEMPOTENCY_KEY_HEADER + "\"}");
             return;
         }
 
         String redisKey = REDIS_KEY_PREFIX + idempotencyKey;
 
         String cached = redisTemplate.opsForValue().get(redisKey);
-        if (cached != null) {
+        if (nonNull(cached)) {
             log.info("Returning cached response for idempotency key: {}", idempotencyKey);
             writeCachedResponse(response, cached);
             return;
@@ -75,11 +93,8 @@ public class IdempotencyFilter extends OncePerRequestFilter {
         responseWrapper.copyBodyToResponse();
     }
 
-    private boolean isIdempotentMethod(HttpServletRequest request) {
-        String method = request.getMethod();
-        return "POST".equalsIgnoreCase(method)
-            || "PUT".equalsIgnoreCase(method)
-            || "PATCH".equalsIgnoreCase(method);
+    private boolean isIdempotent(HttpServletRequest request) {
+        return !NON_IDEMPOTENT_METHODS.contains(request.getMethod());
     }
 
     private void writeCachedResponse(HttpServletResponse response, String cached) throws IOException {
@@ -104,7 +119,7 @@ public class IdempotencyFilter extends OncePerRequestFilter {
 
     private void cacheResponse(String redisKey, ContentCachingResponseWrapper responseWrapper) {
         int status = responseWrapper.getStatus();
-        String contentType = responseWrapper.getContentType() != null ? responseWrapper.getContentType() : "";
+        String contentType = nonNull(responseWrapper.getContentType()) ? responseWrapper.getContentType() : "";
         String bodyBase64 = Base64.getEncoder().encodeToString(responseWrapper.getContentAsByteArray());
 
         String value = status + FIELD_SEPARATOR + contentType + FIELD_SEPARATOR + bodyBase64;

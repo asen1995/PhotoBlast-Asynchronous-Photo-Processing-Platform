@@ -15,6 +15,8 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
 
+import static java.util.Objects.isNull;
+
 /**
  * Implementation of {@link PhotoUploadService} for handling photo uploads.
  * <p>
@@ -50,7 +52,7 @@ public class PhotoUploadServiceImpl implements PhotoUploadService {
         }
 
         String contentType = file.getContentType();
-        if (contentType == null || !contentType.startsWith("image/")) {
+        if (isNull(contentType) || !contentType.startsWith("image/")) {
             return PhotoUploadResponse.error("File must be an image");
         }
 
