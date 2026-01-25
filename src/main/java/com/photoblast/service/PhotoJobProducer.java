@@ -42,8 +42,8 @@ public class PhotoJobProducer {
      * @param job the photo processing job to send
      */
     public void sendPhotoProcessingJob(PhotoProcessingJob job) {
-        log.info("Sending photo processing job: jobId={}, photoId={}", job.jobId(), job.photoId());
+        log.info("Sending photo processing job: jobId={}, photoId={}", job.getJobId(), job.getPhotoId());
         rabbitTemplate.convertAndSend(photoExchange, photoProcessRoutingKey, job);
-        log.info("Photo processing job sent successfully: jobId={}", job.jobId());
+        log.info("Photo processing job sent successfully: jobId={}", job.getJobId());
     }
 }

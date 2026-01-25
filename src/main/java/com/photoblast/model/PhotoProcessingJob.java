@@ -1,5 +1,7 @@
 package com.photoblast.model;
 
+import lombok.Value;
+
 import java.io.Serializable;
 import java.time.Instant;
 import java.util.List;
@@ -11,20 +13,24 @@ import java.util.UUID;
  * Contains all information needed to process an uploaded photo,
  * including the photo location and the list of processing tasks to perform.
  * </p>
- *
- * @param jobId        unique identifier for this processing job
- * @param photoId      unique identifier for the photo being processed
- * @param originalPath file path to the original uploaded photo
- * @param tasks        list of processing tasks to perform on the photo
- * @param createdAt    timestamp when the job was created
  */
-public record PhotoProcessingJob(
-        String jobId,
-        String photoId,
-        String originalPath,
-        List<ProcessingTask> tasks,
-        Instant createdAt
-) implements Serializable {
+@Value
+public class PhotoProcessingJob implements Serializable {
+
+    /** Unique identifier for this processing job */
+    String jobId;
+
+    /** Unique identifier for the photo being processed */
+    String photoId;
+
+    /** File path to the original uploaded photo */
+    String originalPath;
+
+    /** List of processing tasks to perform on the photo */
+    List<ProcessingTask> tasks;
+
+    /** Timestamp when the job was created */
+    Instant createdAt;
 
     /**
      * Available processing tasks that can be performed on photos.

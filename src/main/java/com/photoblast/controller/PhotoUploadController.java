@@ -48,7 +48,7 @@ public class PhotoUploadController {
 
         PhotoUploadResponse response = photoUploadService.uploadPhoto(file, tasks);
 
-        if (response.success()) {
+        if (response.isSuccess()) {
             return ResponseEntity.ok(response);
         }
 
