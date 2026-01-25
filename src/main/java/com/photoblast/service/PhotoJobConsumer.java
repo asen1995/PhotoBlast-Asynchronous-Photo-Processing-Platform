@@ -37,13 +37,13 @@ public class PhotoJobConsumer {
      */
     @RabbitListener(queues = "${photoblast.rabbitmq.queue.photo-process}")
     public void processPhotoJob(PhotoProcessingJob job) {
-        log.info("Received photo processing job: jobId={}, photoId={}", job.jobId(), job.photoId());
+        log.info("Received photo processing job: jobId={}, photoId={}", job.getJobId(), job.getPhotoId());
 
-        for (PhotoProcessingJob.ProcessingTask task : job.tasks()) {
+        for (PhotoProcessingJob.ProcessingTask task : job.getTasks()) {
             processTask(job, task);
         }
 
-        log.info("Completed photo processing job: jobId={}", job.jobId());
+        log.info("Completed photo processing job: jobId={}", job.getJobId());
     }
 
     /**
@@ -53,14 +53,14 @@ public class PhotoJobConsumer {
      * @param task the specific task to process
      */
     private void processTask(PhotoProcessingJob job, PhotoProcessingJob.ProcessingTask task) {
-        log.info("Processing task {} for photo: photoId={}", task, job.photoId());
+        log.info("Processing task {} for photo: photoId={}", task, job.getPhotoId());
 
         switch (task) {
-            case RESIZE -> imageService.resize(job.originalPath(), job.photoId());
-            case WATERMARK -> imageService.watermark(job.originalPath(), job.photoId());
-            case THUMBNAIL -> imageService.thumbnail(job.originalPath(), job.photoId());
+            case RESIZE -> imageService.resize(job.getOriginalPath(), job.getPhotoId());
+            case WATERMARK -> imageService.watermark(job.getOriginalPath(), job.getPhotoId());
+            case THUMBNAIL -> imageService.thumbnail(job.getOriginalPath(), job.getPhotoId());
         }
 
-        log.info("Completed task {} for photo: photoId={}", task, job.photoId());
+        log.info("Completed task {} for photo: photoId={}", task, job.getPhotoId());
     }
 }

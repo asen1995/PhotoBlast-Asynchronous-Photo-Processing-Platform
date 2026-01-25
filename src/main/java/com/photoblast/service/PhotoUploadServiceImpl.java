@@ -69,7 +69,7 @@ public class PhotoUploadServiceImpl implements PhotoUploadService {
             PhotoProcessingJob job = PhotoProcessingJob.create(photoId, filePath.toString(), tasks);
             photoJobProducer.sendPhotoProcessingJob(job);
 
-            return PhotoUploadResponse.success(job.jobId(), photoId, tasks);
+            return PhotoUploadResponse.success(job.getJobId(), photoId, tasks);
 
         } catch (IOException e) {
             log.error("Failed to upload photo", e);

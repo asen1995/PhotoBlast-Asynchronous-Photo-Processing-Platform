@@ -1,16 +1,18 @@
 package com.photoblast.dto;
 
 import com.photoblast.model.PhotoProcessingJob.ProcessingTask;
+import lombok.Value;
 
 import java.util.List;
 
-public record PhotoUploadResponse(
-        boolean success,
-        String message,
-        String jobId,
-        String photoId,
-        List<ProcessingTask> tasks
-) {
+@Value
+public class PhotoUploadResponse {
+
+    boolean success;
+    String message;
+    String jobId;
+    String photoId;
+    List<ProcessingTask> tasks;
 
     public static PhotoUploadResponse success(String jobId, String photoId, List<ProcessingTask> tasks) {
         return new PhotoUploadResponse(true, "Photo uploaded successfully", jobId, photoId, tasks);
