@@ -2,6 +2,7 @@ package com.photoblast;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.EnableAspectJAutoProxy;
 
 /**
  * Main entry point for the PhotoBlast application.
@@ -11,6 +12,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * </p>
  */
 @SpringBootApplication
+@EnableAspectJAutoProxy
 public class PhotoBlastApplication {
 
     public static void main(String[] args) {
