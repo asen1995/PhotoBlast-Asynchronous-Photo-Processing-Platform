@@ -1,7 +1,7 @@
 package com.photoblast.controller;
 
 import com.photoblast.dto.PhotoUploadResponse;
-import com.photoblast.model.PhotoProcessingJob.ProcessingTask;
+import com.photoblast.enums.ProcessingTask;
 import com.photoblast.service.PhotoUploadService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;

@@ -1,5 +1,6 @@
 package com.photoblast.model;
 
+import com.photoblast.enums.ProcessingTask;
 import lombok.Value;
 
 import java.io.Serializable;
@@ -31,18 +32,6 @@ public class PhotoProcessingJob implements Serializable {
 
     /** Timestamp when the job was created */
     Instant createdAt;
-
-    /**
-     * Available processing tasks that can be performed on photos.
-     */
-    public enum ProcessingTask {
-        /** Resize the photo to configured dimensions */
-        RESIZE,
-        /** Apply a watermark to the photo */
-        WATERMARK,
-        /** Generate a thumbnail version of the photo */
-        THUMBNAIL
-    }
 
     /**
      * Factory method to create a new photo processing job.

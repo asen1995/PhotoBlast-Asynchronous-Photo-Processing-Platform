@@ -2,7 +2,7 @@ package com.photoblast.service;
 
 import com.photoblast.dto.PhotoUploadResponse;
 import com.photoblast.model.PhotoProcessingJob;
-import com.photoblast.model.PhotoProcessingJob.ProcessingTask;
+import com.photoblast.enums.ProcessingTask;
 import com.photoblast.util.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

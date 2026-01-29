@@ -1,5 +1,6 @@
 package com.photoblast.service;
 
+import com.photoblast.enums.ProcessingTask;
 import com.photoblast.model.PhotoProcessingJob;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,7 +40,7 @@ public class PhotoJobConsumer {
     public void processPhotoJob(PhotoProcessingJob job) {
         log.info("Received photo processing job: jobId={}, photoId={}", job.getJobId(), job.getPhotoId());
 
-        for (PhotoProcessingJob.ProcessingTask task : job.getTasks()) {
+        for (ProcessingTask task : job.getTasks()) {
             processTask(job, task);
         }
 
@@ -52,7 +53,7 @@ public class PhotoJobConsumer {
      * @param job  the photo processing job
      * @param task the specific task to process
      */
-    private void processTask(PhotoProcessingJob job, PhotoProcessingJob.ProcessingTask task) {
+    private void processTask(PhotoProcessingJob job, ProcessingTask task) {
         log.info("Processing task {} for photo: photoId={}", task, job.getPhotoId());
 
         switch (task) {

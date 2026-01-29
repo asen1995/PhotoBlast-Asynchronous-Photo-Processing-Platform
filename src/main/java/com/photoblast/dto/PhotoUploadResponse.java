@@ -1,6 +1,6 @@
 package com.photoblast.dto;
 
-import com.photoblast.model.PhotoProcessingJob.ProcessingTask;
+import com.photoblast.enums.ProcessingTask;
 import lombok.Value;
 
 import java.util.List;

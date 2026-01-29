@@ -1,7 +1,7 @@
 package com.photoblast.service;
 
 import com.photoblast.dto.PhotoUploadResponse;
-import com.photoblast.model.PhotoProcessingJob.ProcessingTask;
+import com.photoblast.enums.ProcessingTask;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
