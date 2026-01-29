@@ -87,9 +87,7 @@ public class IdempotencyFilter extends OncePerRequestFilter {
         ContentCachingResponseWrapper responseWrapper = new ContentCachingResponseWrapper(response);
 
         filterChain.doFilter(request, responseWrapper);
-
         cacheResponse(redisKey, responseWrapper);
-
         responseWrapper.copyBodyToResponse();
     }
 
