@@ -5,7 +5,6 @@ import com.photoblast.enums.ProcessingTask;
 import com.photoblast.filter.IdempotencyFilter;
 import com.photoblast.service.PhotoUploadService;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -35,6 +34,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @DisplayName("PhotoUploadController Unit Tests")
 class PhotoUploadControllerTest {
 
+    private static final String JOB_ID = "job-123";
+    private static final String PHOTO_ID = "photo-456";
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -44,125 +46,112 @@ class PhotoUploadControllerTest {
     @MockitoBean
     private StringRedisTemplate stringRedisTemplate;
 
-    @Nested
-    @DisplayName("GET /photos/health")
-    class HealthEndpoint {
-
-        @Test
-        @DisplayName("should return OK status")
-        void shouldReturnOkStatus() throws Exception {
-            mockMvc.perform(get("/photos/health"))
-                    .andExpect(status().isOk())
-                    .andExpect(content().string("OK"));
-        }
+    @Test
+    @DisplayName("GET /photos/health - should return OK status")
+    void healthShouldReturnOkStatus() throws Exception {
+        mockMvc.perform(get("/photos/health"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("OK"));
     }
 
-    @Nested
-    @DisplayName("POST /photos/upload")
-    class UploadEndpoint {
+    @Test
+    @DisplayName("POST /photos/upload - should upload photo successfully with default tasks")
+    void uploadShouldSucceedWithDefaultTasks() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "test-image.jpg",
+                MediaType.IMAGE_JPEG_VALUE,
+                "test image content".getBytes()
+        );
 
-        private static final String JOB_ID = "job-123";
-        private static final String PHOTO_ID = "photo-456";
+        List<ProcessingTask> expectedTasks = List.of(ProcessingTask.RESIZE, ProcessingTask.THUMBNAIL);
+        PhotoUploadResponse successResponse = PhotoUploadResponse.success(JOB_ID, PHOTO_ID, expectedTasks);
 
-        @Test
-        @DisplayName("should upload photo successfully with default tasks")
-        void shouldUploadPhotoSuccessfully() throws Exception {
-            MockMultipartFile file = new MockMultipartFile(
-                    "file",
-                    "test-image.jpg",
-                    MediaType.IMAGE_JPEG_VALUE,
-                    "test image content".getBytes()
-            );
+        when(photoUploadService.uploadPhoto(any(), anyList())).thenReturn(successResponse);
 
-            List<ProcessingTask> expectedTasks = List.of(ProcessingTask.RESIZE, ProcessingTask.THUMBNAIL);
-            PhotoUploadResponse successResponse = PhotoUploadResponse.success(JOB_ID, PHOTO_ID, expectedTasks);
+        mockMvc.perform(multipart("/photos/upload")
+                        .file(file))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.jobId").value(JOB_ID))
+                .andExpect(jsonPath("$.photoId").value(PHOTO_ID))
+                .andExpect(jsonPath("$.message").value("Photo uploaded successfully"));
 
-            when(photoUploadService.uploadPhoto(any(), anyList())).thenReturn(successResponse);
+        verify(photoUploadService).uploadPhoto(any(), anyList());
+    }
 
-            mockMvc.perform(multipart("/photos/upload")
-                            .file(file))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.success").value(true))
-                    .andExpect(jsonPath("$.jobId").value(JOB_ID))
-                    .andExpect(jsonPath("$.photoId").value(PHOTO_ID))
-                    .andExpect(jsonPath("$.message").value("Photo uploaded successfully"));
+    @Test
+    @DisplayName("POST /photos/upload - should upload photo with custom tasks")
+    void uploadShouldSucceedWithCustomTasks() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "test-image.png",
+                MediaType.IMAGE_PNG_VALUE,
+                "test image content".getBytes()
+        );
 
-            verify(photoUploadService).uploadPhoto(any(), anyList());
-        }
+        List<ProcessingTask> customTasks = List.of(ProcessingTask.RESIZE, ProcessingTask.WATERMARK);
+        PhotoUploadResponse successResponse = PhotoUploadResponse.success(JOB_ID, PHOTO_ID, customTasks);
 
-        @Test
-        @DisplayName("should upload photo with custom tasks")
-        void shouldUploadPhotoWithCustomTasks() throws Exception {
-            MockMultipartFile file = new MockMultipartFile(
-                    "file",
-                    "test-image.png",
-                    MediaType.IMAGE_PNG_VALUE,
-                    "test image content".getBytes()
-            );
+        when(photoUploadService.uploadPhoto(any(), anyList())).thenReturn(successResponse);
 
-            List<ProcessingTask> customTasks = List.of(ProcessingTask.RESIZE, ProcessingTask.WATERMARK);
-            PhotoUploadResponse successResponse = PhotoUploadResponse.success(JOB_ID, PHOTO_ID, customTasks);
+        mockMvc.perform(multipart("/photos/upload")
+                        .file(file)
+                        .param("tasks", "RESIZE,WATERMARK"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.tasks[0]").value("RESIZE"))
+                .andExpect(jsonPath("$.tasks[1]").value("WATERMARK"));
+    }
 
-            when(photoUploadService.uploadPhoto(any(), anyList())).thenReturn(successResponse);
+    @Test
+    @DisplayName("POST /photos/upload - should return bad request when file is empty")
+    void uploadShouldReturnBadRequestWhenFileIsEmpty() throws Exception {
+        MockMultipartFile emptyFile = new MockMultipartFile(
+                "file",
+                "empty.jpg",
+                MediaType.IMAGE_JPEG_VALUE,
+                new byte[0]
+        );
 
-            mockMvc.perform(multipart("/photos/upload")
-                            .file(file)
-                            .param("tasks", "RESIZE,WATERMARK"))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.success").value(true))
-                    .andExpect(jsonPath("$.tasks[0]").value("RESIZE"))
-                    .andExpect(jsonPath("$.tasks[1]").value("WATERMARK"));
-        }
+        PhotoUploadResponse errorResponse = PhotoUploadResponse.error("File is empty");
 
-        @Test
-        @DisplayName("should return bad request when file is empty")
-        void shouldReturnBadRequestWhenFileIsEmpty() throws Exception {
-            MockMultipartFile emptyFile = new MockMultipartFile(
-                    "file",
-                    "empty.jpg",
-                    MediaType.IMAGE_JPEG_VALUE,
-                    new byte[0]
-            );
+        when(photoUploadService.uploadPhoto(any(), anyList())).thenReturn(errorResponse);
 
-            PhotoUploadResponse errorResponse = PhotoUploadResponse.error("File is empty");
+        mockMvc.perform(multipart("/photos/upload")
+                        .file(emptyFile))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("File is empty"));
+    }
 
-            when(photoUploadService.uploadPhoto(any(), anyList())).thenReturn(errorResponse);
+    @Test
+    @DisplayName("POST /photos/upload - should return bad request when file is not an image")
+    void uploadShouldReturnBadRequestWhenFileIsNotImage() throws Exception {
+        MockMultipartFile textFile = new MockMultipartFile(
+                "file",
+                "document.txt",
+                MediaType.TEXT_PLAIN_VALUE,
+                "this is not an image".getBytes()
+        );
 
-            mockMvc.perform(multipart("/photos/upload")
-                            .file(emptyFile))
-                    .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.success").value(false))
-                    .andExpect(jsonPath("$.message").value("File is empty"));
-        }
+        PhotoUploadResponse errorResponse = PhotoUploadResponse.error("File must be an image");
 
-        @Test
-        @DisplayName("should return bad request when file is not an image")
-        void shouldReturnBadRequestWhenFileIsNotImage() throws Exception {
-            MockMultipartFile textFile = new MockMultipartFile(
-                    "file",
-                    "document.txt",
-                    MediaType.TEXT_PLAIN_VALUE,
-                    "this is not an image".getBytes()
-            );
+        when(photoUploadService.uploadPhoto(any(), anyList())).thenReturn(errorResponse);
 
-            PhotoUploadResponse errorResponse = PhotoUploadResponse.error("File must be an image");
+        mockMvc.perform(multipart("/photos/upload")
+                        .file(textFile))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("File must be an image"));
+    }
 
-            when(photoUploadService.uploadPhoto(any(), anyList())).thenReturn(errorResponse);
+    @Test
+    @DisplayName("POST /photos/upload - should return bad request when file parameter is missing")
+    void uploadShouldReturnBadRequestWhenFileMissing() throws Exception {
+        mockMvc.perform(multipart("/photos/upload"))
+                .andExpect(status().isBadRequest());
 
-            mockMvc.perform(multipart("/photos/upload")
-                            .file(textFile))
-                    .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.success").value(false))
-                    .andExpect(jsonPath("$.message").value("File must be an image"));
-        }
-
-        @Test
-        @DisplayName("should return bad request when file parameter is missing")
-        void shouldReturnBadRequestWhenFileMissing() throws Exception {
-            mockMvc.perform(multipart("/photos/upload"))
-                    .andExpect(status().isBadRequest());
-
-            verify(photoUploadService, never()).uploadPhoto(any(), anyList());
-        }
+        verify(photoUploadService, never()).uploadPhoto(any(), anyList());
     }
 }

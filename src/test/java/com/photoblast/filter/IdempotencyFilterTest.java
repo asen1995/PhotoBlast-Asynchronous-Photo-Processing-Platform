@@ -4,7 +4,6 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -55,132 +54,117 @@ class IdempotencyFilterTest {
         response = new MockHttpServletResponse();
     }
 
-    @Nested
-    @DisplayName("Idempotent Methods (GET, DELETE, HEAD, OPTIONS)")
-    class IdempotentMethods {
+    @ParameterizedTest
+    @ValueSource(strings = {"GET", "DELETE", "HEAD", "OPTIONS"})
+    @DisplayName("Idempotent methods should pass through without idempotency key check")
+    void idempotentMethodsShouldPassThrough(String method) throws ServletException, IOException {
+        request.setMethod(method);
+        request.setRequestURI("/photos/health");
 
-        @ParameterizedTest
-        @ValueSource(strings = {"GET", "DELETE", "HEAD", "OPTIONS"})
-        @DisplayName("should pass through without idempotency key check")
-        void shouldPassThroughForIdempotentMethods(String method) throws ServletException, IOException {
-            request.setMethod(method);
-            request.setRequestURI("/photos/health");
+        idempotencyFilter.doFilter(request, response, filterChain);
 
-            idempotencyFilter.doFilter(request, response, filterChain);
-
-            verify(filterChain).doFilter(request, response);
-            verify(redisTemplate, never()).opsForValue();
-        }
+        verify(filterChain).doFilter(request, response);
+        verify(redisTemplate, never()).opsForValue();
     }
 
-    @Nested
-    @DisplayName("Non-Idempotent Methods (POST, PUT, PATCH)")
-    class NonIdempotentMethods {
+    @ParameterizedTest
+    @ValueSource(strings = {"POST", "PUT", "PATCH"})
+    @DisplayName("Non-idempotent methods should return 400 when idempotency key is missing")
+    void nonIdempotentMethodsShouldReturnBadRequestWhenKeyMissing(String method) throws ServletException, IOException {
+        request.setMethod(method);
+        request.setRequestURI("/photos/upload");
 
-        @ParameterizedTest
-        @ValueSource(strings = {"POST", "PUT", "PATCH"})
-        @DisplayName("should return 400 when idempotency key is missing")
-        void shouldReturnBadRequestWhenKeyMissing(String method) throws ServletException, IOException {
-            request.setMethod(method);
-            request.setRequestURI("/photos/upload");
+        idempotencyFilter.doFilter(request, response, filterChain);
 
-            idempotencyFilter.doFilter(request, response, filterChain);
-
-            assertThat(response.getStatus()).isEqualTo(400);
-            assertThat(response.getContentAsString()).contains("Missing required header");
-            verify(filterChain, never()).doFilter(any(), any());
-        }
-
-        @ParameterizedTest
-        @ValueSource(strings = {"POST", "PUT", "PATCH"})
-        @DisplayName("should return 400 when idempotency key is blank")
-        void shouldReturnBadRequestWhenKeyBlank(String method) throws ServletException, IOException {
-            request.setMethod(method);
-            request.setRequestURI("/photos/upload");
-            request.addHeader(IDEMPOTENCY_KEY_HEADER, "   ");
-
-            idempotencyFilter.doFilter(request, response, filterChain);
-
-            assertThat(response.getStatus()).isEqualTo(400);
-            assertThat(response.getContentAsString()).contains("Missing required header");
-        }
-
-        @Test
-        @DisplayName("should return cached response when key exists in Redis")
-        void shouldReturnCachedResponseWhenKeyExists() throws ServletException, IOException {
-            request.setMethod("POST");
-            request.setRequestURI("/photos/upload");
-            request.addHeader(IDEMPOTENCY_KEY_HEADER, TEST_IDEMPOTENCY_KEY);
-
-            String cachedBody = "{\"success\":true}";
-            String cachedValue = "200|||application/json|||" + Base64.getEncoder().encodeToString(cachedBody.getBytes());
-
-            when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-            when(valueOperations.get("idempotency:" + TEST_IDEMPOTENCY_KEY)).thenReturn(cachedValue);
-
-            idempotencyFilter.doFilter(request, response, filterChain);
-
-            assertThat(response.getStatus()).isEqualTo(200);
-            assertThat(response.getContentType()).isEqualTo("application/json");
-            assertThat(response.getContentAsString()).isEqualTo(cachedBody);
-            verify(filterChain, never()).doFilter(any(), any());
-        }
-
-        @Test
-        @DisplayName("should process request and cache response when key is new")
-        void shouldProcessAndCacheResponseWhenKeyIsNew() throws ServletException, IOException {
-            request.setMethod("POST");
-            request.setRequestURI("/photos/upload");
-            request.addHeader(IDEMPOTENCY_KEY_HEADER, TEST_IDEMPOTENCY_KEY);
-
-            when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-            when(valueOperations.get("idempotency:" + TEST_IDEMPOTENCY_KEY)).thenReturn(null);
-
-            idempotencyFilter.doFilter(request, response, filterChain);
-
-            verify(filterChain).doFilter(eq(request), any());
-            verify(valueOperations).set(eq("idempotency:" + TEST_IDEMPOTENCY_KEY), anyString(), any(Duration.class));
-        }
+        assertThat(response.getStatus()).isEqualTo(400);
+        assertThat(response.getContentAsString()).contains("Missing required header");
+        verify(filterChain, never()).doFilter(any(), any());
     }
 
-    @Nested
-    @DisplayName("Cached Response Parsing")
-    class CachedResponseParsing {
+    @ParameterizedTest
+    @ValueSource(strings = {"POST", "PUT", "PATCH"})
+    @DisplayName("Non-idempotent methods should return 400 when idempotency key is blank")
+    void nonIdempotentMethodsShouldReturnBadRequestWhenKeyBlank(String method) throws ServletException, IOException {
+        request.setMethod(method);
+        request.setRequestURI("/photos/upload");
+        request.addHeader(IDEMPOTENCY_KEY_HEADER, "   ");
 
-        @Test
-        @DisplayName("should handle cached response with empty content type")
-        void shouldHandleEmptyContentType() throws ServletException, IOException {
-            request.setMethod("POST");
-            request.setRequestURI("/photos/upload");
-            request.addHeader(IDEMPOTENCY_KEY_HEADER, TEST_IDEMPOTENCY_KEY);
+        idempotencyFilter.doFilter(request, response, filterChain);
 
-            String cachedBody = "OK";
-            String cachedValue = "200||||||" + Base64.getEncoder().encodeToString(cachedBody.getBytes());
+        assertThat(response.getStatus()).isEqualTo(400);
+        assertThat(response.getContentAsString()).contains("Missing required header");
+    }
 
-            when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-            when(valueOperations.get("idempotency:" + TEST_IDEMPOTENCY_KEY)).thenReturn(cachedValue);
+    @Test
+    @DisplayName("Should return cached response when idempotency key exists in Redis")
+    void shouldReturnCachedResponseWhenKeyExists() throws ServletException, IOException {
+        request.setMethod("POST");
+        request.setRequestURI("/photos/upload");
+        request.addHeader(IDEMPOTENCY_KEY_HEADER, TEST_IDEMPOTENCY_KEY);
 
-            idempotencyFilter.doFilter(request, response, filterChain);
+        String cachedBody = "{\"success\":true}";
+        String cachedValue = "200|||application/json|||" + Base64.getEncoder().encodeToString(cachedBody.getBytes());
 
-            assertThat(response.getStatus()).isEqualTo(200);
-        }
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.get("idempotency:" + TEST_IDEMPOTENCY_KEY)).thenReturn(cachedValue);
 
-        @Test
-        @DisplayName("should handle cached response with empty body")
-        void shouldHandleEmptyBody() throws ServletException, IOException {
-            request.setMethod("POST");
-            request.setRequestURI("/photos/upload");
-            request.addHeader(IDEMPOTENCY_KEY_HEADER, TEST_IDEMPOTENCY_KEY);
+        idempotencyFilter.doFilter(request, response, filterChain);
 
-            String cachedValue = "204|||application/json|||" + Base64.getEncoder().encodeToString(new byte[0]);
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(response.getContentType()).isEqualTo("application/json");
+        assertThat(response.getContentAsString()).isEqualTo(cachedBody);
+        verify(filterChain, never()).doFilter(any(), any());
+    }
 
-            when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-            when(valueOperations.get("idempotency:" + TEST_IDEMPOTENCY_KEY)).thenReturn(cachedValue);
+    @Test
+    @DisplayName("Should process request and cache response when idempotency key is new")
+    void shouldProcessAndCacheResponseWhenKeyIsNew() throws ServletException, IOException {
+        request.setMethod("POST");
+        request.setRequestURI("/photos/upload");
+        request.addHeader(IDEMPOTENCY_KEY_HEADER, TEST_IDEMPOTENCY_KEY);
 
-            idempotencyFilter.doFilter(request, response, filterChain);
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.get("idempotency:" + TEST_IDEMPOTENCY_KEY)).thenReturn(null);
 
-            assertThat(response.getStatus()).isEqualTo(204);
-            assertThat(response.getContentAsString()).isEmpty();
-        }
+        idempotencyFilter.doFilter(request, response, filterChain);
+
+        verify(filterChain).doFilter(eq(request), any());
+        verify(valueOperations).set(eq("idempotency:" + TEST_IDEMPOTENCY_KEY), anyString(), any(Duration.class));
+    }
+
+    @Test
+    @DisplayName("Should handle cached response with empty content type")
+    void shouldHandleEmptyContentType() throws ServletException, IOException {
+        request.setMethod("POST");
+        request.setRequestURI("/photos/upload");
+        request.addHeader(IDEMPOTENCY_KEY_HEADER, TEST_IDEMPOTENCY_KEY);
+
+        String cachedBody = "OK";
+        String cachedValue = "200||||||" + Base64.getEncoder().encodeToString(cachedBody.getBytes());
+
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.get("idempotency:" + TEST_IDEMPOTENCY_KEY)).thenReturn(cachedValue);
+
+        idempotencyFilter.doFilter(request, response, filterChain);
+
+        assertThat(response.getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    @DisplayName("Should handle cached response with empty body")
+    void shouldHandleEmptyBody() throws ServletException, IOException {
+        request.setMethod("POST");
+        request.setRequestURI("/photos/upload");
+        request.addHeader(IDEMPOTENCY_KEY_HEADER, TEST_IDEMPOTENCY_KEY);
+
+        String cachedValue = "204|||application/json|||" + Base64.getEncoder().encodeToString(new byte[0]);
+
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.get("idempotency:" + TEST_IDEMPOTENCY_KEY)).thenReturn(cachedValue);
+
+        idempotencyFilter.doFilter(request, response, filterChain);
+
+        assertThat(response.getStatus()).isEqualTo(204);
+        assertThat(response.getContentAsString()).isEmpty();
     }
 }
